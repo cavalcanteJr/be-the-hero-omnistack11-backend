@@ -2,6 +2,7 @@ const connection = require('../database/connection')
 const fs = require('fs')
 const path = require('path')
 const { promisify } = require('util')
+const aws = require("aws-sdk");
 
 module.exports = {
     async index(request, response) {
@@ -21,7 +22,7 @@ module.exports = {
 
     async create(request, response){
         const { key } = request.file
-        let { keylocation: imageurl ='' } = request.file
+        let { location: imageurl ='' } = request.file
         const {title, description, value} = request.body
         const ong_email = request.headers.email
 
@@ -49,8 +50,17 @@ module.exports = {
         }
         
         if(await connection("incidents").where('id', id).delete())
-            promisify(fs.unlink)(path.resolve(__dirname, '..','..', 'tmp', 'uploads', incident.filename))
+            if(process.env.STORAGE_TYPE == 'local'){
+                promisify(fs.unlink)(path.resolve(__dirname, '..','..', 'tmp', 'uploads', incident.filename))
+            }else{
+                new aws.S3().deleteObject({
+                    Bucket: process.env.BUCKET_NAME, 
+                    Key: incident.filename 
+                    },function (err,data){
+                        console.log(err)
+                    })
+            }   
 
         return response.status(204).send()
     }
-}
+}     
